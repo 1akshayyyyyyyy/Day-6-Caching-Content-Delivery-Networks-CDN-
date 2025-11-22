@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Day 6: Caching (CDN)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Base Component Styling */
+        .component {
+            min-height: 70px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            transition: all 0.5s ease-in-out;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border: 2px solid;
+            position: relative;
+            padding: 1rem 1.5rem;
+            margin: 1rem 0;
+            width: 90%;
+            max-width: 350px;
+        }
+
+        /* Keyframes for Request/Data Flow */
+        @keyframes request-flow {
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(var(--target-y)); opacity: 0; }
+        }
+
+        .data-packet {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 20;
+            opacity: 0;
+        }
+        
+        /* Specific Request Colors */
+        .request-color { background-color: #f97316; } /* Orange */
+        .hit-color { background-color: #22c55e; } /* Green */
+        .miss-color { background-color: #ef4444; } /* Red */
+
+        /* Canvas Layout */
+        .flow-line {
+            height: 50px;
+            width: 2px;
+            background-color: #94a3b8;
+        }
+
+        /* Code block styling */
+        pre {
+            background-color: #1f2937; color: #d1d5db; padding: 1rem; border-radius: 0.5rem;
+            overflow-x: auto; font-family: 'Courier New', Courier, monospace; font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-6 sm:p-10 flex flex-col items-center min-h-screen font-sans">
+
+    <div class="canvas-container bg-white p-6 sm:p-10 rounded-xl shadow-2xl w-full max-w-4xl flex flex-col items-center">
+        <h1 class="text-3xl font-extrabold text-indigo-700 mb-8 text-center">Day 6: Caching & Content Delivery Networks (CDN)</h1>
+        
+        <div class="w-full p-6 bg-gray-50 rounded-lg border border-gray-200">
+            <h2 class="text-2xl font-bold text-center text-indigo-600 mb-6">Interactive Diagram: Cache Hit vs. Miss</h2>
+            
+            <div class="flex flex-col items-center relative" id="animation-area">
+                
+                <div class="component bg-blue-100 text-blue-800 border-blue-400" id="client-comp">
+                    Client (You) - Location: **New York**
+                </div>
+                
+                <div class="flow-line"></div>
+                <div class="data-packet request-color" id="request-packet" style="top: 85px;"></div>
+                
+                <div class="component bg-green-100 text-green-800 border-green-400" id="cdn-comp">
+                    CDN Edge Node - Location: **New Jersey** (Cache)
+                    <div class="text-sm mt-1" id="cache-status">Status: Waiting</div>
+                </div>
+                
+                <div class="flow-line"></div>
+                <div class="data-packet miss-color" id="miss-packet" style="top: 235px;"></div>
+
+                <div class="component bg-red-100 text-red-800 border-red-400" id="origin-comp">
+                    Origin Server - Location: **Singapore** (Backend Database)
+                </div>
+
+                <div class="mt-8 flex space-x-4">
+                    <button onclick="simulateRequest('hit')" class="py-2 px-4 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition duration-200 shadow-md">
+                        Simulate **CACHE HIT** (FAST)
+                    </button>
+                    <button onclick="simulateRequest('miss')" class="py-2 px-4 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition duration-200 shadow-md">
+                        Simulate **CACHE MISS** (SLOW)
+                    </button>
+                </div>
+                
+                <div class="instruction w-full mt-6 p-3 bg-yellow-100 border-l-4 border-yellow-500 rounded text-gray-700">
+                    <span class="font-bold">Result:</span> <span id="result-message">Click a button to start the flow.</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="theory-section w-full mt-8 p-6 bg-gray-50 rounded-lg border border-gray-200 text-left">
+            <h2 class="text-2xl font-bold text-indigo-600 mb-4">📘 Core Concept: Caching (CDN)</h2>
+            <p class="mb-4 text-gray-700">
+                A **Content Delivery Network (CDN)** places copies of your static files (images, CSS, JavaScript) on **Edge Nodes**—servers distributed globally. When a user requests a file, the CDN directs them to the nearest Edge Node.
+            </p>
+            <ul class="list-disc list-inside space-y-2 text-gray-700">
+                <li>**Cache Hit (Fast):** The Edge Node has the file. Latency is low (e.g., 50ms) because the file travels a short distance.</li>
+                <li>**Cache Miss (Slow):** The Edge Node does *not* have the file. It must travel all the way to the distant **Origin Server** (your main server) to fetch it, resulting in high latency (e.g., 500ms).</li>
+            </ul>
+
+            <h3 class="text-xl font-bold text-indigo-600 mt-6 mb-3">🎯 Learning Objectives (rseedh mode)</h3>
+            <div class="grid sm:grid-cols-2 gap-3 text-sm">
+                <p class="text-gray-700"><span class="font-bold text-green-700">R</span>ecognize the latency problem caused by geographic distance (speed of light).</p>
+                <p class="text-gray-700"><span class="font-bold text-green-700">S</span>pecify the function of a **CDN Edge Node** (caching point).</p>
+                <p class="text-gray-700"><span class="font-bold text-green-700">E</span>xplain the difference between a cache **HIT** and a cache **MISS**.</p>
+                <p class="text-gray-700"><span class="font-bold text-green-700">E</span>xamine how caching improves both **latency** and **origin server load**.</p>
+                <p class="text-gray-700"><span class="font-bold text-green-700">D</span>emonstrate the flow of a request through the CDN to the Origin.</p>
+                <p class="text-gray-700"><span class="font-bold text-green-700">H</span>ow to choose assets for caching (static vs. dynamic content).</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const clientComp = document.getElementById('client-comp');
+        const cdnComp = document.getElementById('cdn-comp');
+        const originComp = document.getElementById('origin-comp');
+        const resultMessage = document.getElementById('result-message');
+        const animationArea = document.getElementById('animation-area');
+        const requestPacket = document.getElementById('request-packet');
+        const missPacket = document.getElementById('miss-packet');
+        const cacheStatus = document.getElementById('cache-status');
+
+        const clientY = clientComp.offsetTop + clientComp.offsetHeight / 2;
+        const cdnY = cdnComp.offsetTop + cdnComp.offsetHeight / 2;
+        const originY = originComp.offsetTop + originComp.offsetHeight / 2;
+
+        const components = [clientComp, cdnComp, originComp];
+
+        function resetAnimation() {
+            components.forEach(comp => comp.style.borderWidth = '2px');
+            requestPacket.style.opacity = 0;
+            missPacket.style.opacity = 0;
+            requestPacket.style.animation = 'none';
+            missPacket.style.animation = 'none';
+            requestPacket.style.top = `${cdnY - 100}px`; 
+            missPacket.style.top = `${cdnY - 100}px`;
+            cacheStatus.textContent = 'Status: Waiting';
+        }
+
+        function simulateRequest(type) {
+            resetAnimation();
+            const isHit = type === 'hit';
+            
+            // 1. Client sends request
+            resultMessage.textContent = `Client requesting file...`;
+            clientComp.style.borderWidth = '4px';
+            
+            // Request packet moves from Client to CDN
+            requestPacket.style.opacity = 1;
+            requestPacket.style.backgroundColor = '#f97316';
+            requestPacket.style.animation = `request-flow 0.5s ease-in-out forwards`;
+            requestPacket.style.setProperty('--target-y', `${cdnY - 100}px`);
+
+            setTimeout(() => {
+                cdnComp.style.borderWidth = '4px';
+                if (isHit) {
+                    // Cache Hit (FAST)
+                    cacheStatus.textContent = 'Cache HIT! Serving from Edge Node.';
+                    resultMessage.textContent = `Cache HIT! File found at Edge Node (Latency: ~50ms).`;
+                    
+                    // Response packet (green) moves from CDN back to Client
+                    requestPacket.style.backgroundColor = '#22c55e';
+                    requestPacket.style.animation = `request-flow 0.5s ease-in-out reverse forwards`;
+                    requestPacket.style.setProperty('--target-y', `${-100}px`);
+                    
+                    setTimeout(() => {
+                        clientComp.style.borderWidth = '2px';
+                        cdnComp.style.borderWidth = '2px';
+                        requestPacket.style.opacity = 0;
+                    }, 500);
+
+                } else {
+                    // Cache Miss (SLOW)
+                    cacheStatus.textContent = 'Cache MISS. Must fetch from Origin Server.';
+                    resultMessage.textContent = `Cache MISS. Requesting from distant Origin Server (Latency: ~500ms)`;
+                    
+                    // Request packet (red) moves from CDN to Origin
+                    missPacket.style.opacity = 1;
+                    missPacket.style.backgroundColor = '#ef4444';
+                    missPacket.style.animation = `request-flow 1.5s ease-in-out forwards`;
+                    missPacket.style.setProperty('--target-y', `${originY - cdnY - 70}px`); 
+
+                    setTimeout(() => {
+                        originComp.style.borderWidth = '4px';
+                        resultMessage.textContent = `Origin Server found the file. Sending back...`;
+
+                        // Response packet (red) moves from Origin back to CDN
+                        missPacket.style.animation = `request-flow 1.5s ease-in-out reverse forwards`;
+                        missPacket.style.setProperty('--target-y', `${cdnY - originY - 70}px`);
+                        
+                        setTimeout(() => {
+                            originComp.style.borderWidth = '2px';
+                            cdnComp.style.borderWidth = '4px';
+                            cacheStatus.textContent = 'Cache MISS. Data now stored on Edge Node.';
+                            
+                            // Response packet (green) moves from CDN back to Client
+                            requestPacket.style.backgroundColor = '#22c55e';
+                            requestPacket.style.opacity = 1;
+                            requestPacket.style.animation = `request-flow 0.5s ease-in-out reverse forwards`;
+                            requestPacket.style.setProperty('--target-y', `${-100}px`);
+                            missPacket.style.opacity = 0;
+
+                            setTimeout(() => {
+                                clientComp.style.borderWidth = '2px';
+                                cdnComp.style.borderWidth = '2px';
+                                resultMessage.textContent = `Cache MISS complete. File delivered. Next request will be a HIT! (Total Latency: ~2.5s)`;
+                                requestPacket.style.opacity = 0;
+                            }, 500);
+
+                        }, 1500); // Wait for Origin response
+
+                    }, 1500); // Wait for Miss request
+
+                }
+            }, 500); // Wait for initial request
+        }
+        
+        // Initial setup for packets (hidden)
+        resetAnimation();
+        
+    </script>
+</body>
+</html>
