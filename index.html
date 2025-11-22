@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Day 6: Caching (CDN)</title>
+    <!-- Load Tailwind CSS for modern styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Base Component Styling */
@@ -59,6 +60,9 @@
             background-color: #1f2937; color: #d1d5db; padding: 1rem; border-radius: 0.5rem;
             overflow-x: auto; font-family: 'Courier New', Courier, monospace; font-size: 0.875rem;
         }
+        pre .comment { color: #6b7280; }
+        pre .keyword { color: #c084fc; }
+        pre .string { color: #a5b4fc; }
     </style>
 </head>
 <body class="bg-gray-100 p-6 sm:p-10 flex flex-col items-center min-h-screen font-sans">
@@ -66,9 +70,73 @@
     <div class="canvas-container bg-white p-6 sm:p-10 rounded-xl shadow-2xl w-full max-w-4xl flex flex-col items-center">
         <h1 class="text-3xl font-extrabold text-indigo-700 mb-8 text-center">Day 6: Caching & Content Delivery Networks (CDN)</h1>
         
+        <!-- LESSON THEORY SECTION -->
+        <div class="theory-section w-full mb-10 p-6 bg-gray-50 rounded-lg border border-gray-200 text-left">
+            <h2 class="text-2xl font-bold text-indigo-600 mb-4">📘 Core Concept: Caching (CDN)</h2>
+            <p class="mb-4 text-gray-700">
+                A **Content Delivery Network (CDN)** places copies of your static files (images, CSS, JavaScript) on **Edge Nodes**—servers distributed globally. When a user requests a file, the CDN directs them to the nearest Edge Node. This is crucial because traveling across continents to the **Origin Server** (your main server) causes high latency.
+            </p>
+            <ul class="list-disc list-inside space-y-2 text-gray-700">
+                <li>**Cache Hit (Fast):** The Edge Node has the file. Latency is low (e.g., 50ms) because the file travels a short distance.</li>
+                <li>**Cache Miss (Slow):** The Edge Node does *not* have the file. It must travel all the way to the distant **Origin Server** to fetch it, resulting in high latency (e.g., 500ms).</li>
+            </ul>
+        </div>
+        
+        <!-- DJANGO FIX SECTION (The missing template) -->
+        <div class="django-fix w-full mb-10 p-6 bg-blue-50 rounded-lg border border-blue-200 text-left">
+            <h2 class="text-2xl font-bold text-blue-700 mb-4">🛠️ The Django "Fix": Using CDN for Static Files</h2>
+            <p class="mb-4 text-gray-700">
+                **The Problem:** Django's built-in static file handler is slow, and serving images from your main server in Singapore to users in New York causes high latency.
+            </p>
+            <p class="mb-4 text-gray-700">
+                **The Fix:** Use a storage backend (like S3/Cloud Storage) and tell Django to generate URLs pointing to the CDN endpoint, not your main server. We rely on **ManifestStaticFilesStorage** to handle **cache busting**.
+            </p>
+
+            <h3 class="text-lg font-semibold text-blue-800 mt-6 mb-2">1. Essential Django Settings (`settings.py`)</h3>
+            <pre><span class="comment"># settings.py</span>
+<span class="comment"># Tells Django to generate URLs pointing to the CDN</span>
+<span class="variable">STATIC_URL</span> = <span class="string">'/static/'</span> 
+<span class="variable">STATICFILES_STORAGE</span> = <span class="string">'django.contrib.staticfiles.storage.ManifestStaticFilesStorage'</span>
+<span class="variable">STATIC_ROOT</span> = <span class="string">BASE_DIR / 'staticfiles'</span>
+
+<span class="comment"># The public CDN URL (The 'fix')</span>
+<span class="variable">CDN_URL</span> = <span class="string">'https://d2a9x7x8.cloudfront.net/'</span> 
+<span class="variable">STATICFILES_DIRS</span> = [
+    <span class="variable">BASE_DIR</span> / <span class="string">"static"</span>,
+]
+</pre>
+
+            <h3 class="text-lg font-semibold text-blue-800 mt-6 mb-2">2. The Result (Cache Busting)</h3>
+            <p class="mb-2 text-sm text-gray-700">
+                When you change a CSS file, Django automatically changes its name using a hash (cache busting), forcing the CDN and browser to fetch the new version, thus preventing **stale cache** issues.
+            </p>
+            <pre><span class="comment"># Before change:</span>
+<span class="string">/static/css/style.css</span>
+
+<span class="comment"># After change (ManifestStaticFilesStorage) and CDN URL:</span>
+<span class="string">https://d2a9x7x8.cloudfront.net/static/css/style.5f38a7c2.css</span>
+</pre>
+        </div>
+        <!-- END DJANGO FIX SECTION -->
+        
+        <!-- INTERACTIVE DIAGRAM -->
         <div class="w-full p-6 bg-gray-50 rounded-lg border border-gray-200">
             <h2 class="text-2xl font-bold text-center text-indigo-600 mb-6">Interactive Diagram: Cache Hit vs. Miss</h2>
             
+            <div class="flex flex-col items-center mb-6 p-4 bg-gray-100 border-l-4 rounded-lg w-full" id="status-box">
+                <div id="result-message" class="text-lg font-bold text-gray-700">Click a button to start the flow.</div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-4 mb-10">
+                <button onclick="simulateRequest('hit')" class="py-2 px-4 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition duration-200 shadow-md">
+                    Simulate **CACHE HIT** (FAST)
+                </button>
+                <button onclick="simulateRequest('miss')" class="py-2 px-4 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition duration-200 shadow-md">
+                    Simulate **CACHE MISS** (SLOW)
+                </button>
+            </div>
+
+            <!-- Architecture Diagram -->
             <div class="flex flex-col items-center relative" id="animation-area">
                 
                 <div class="component bg-blue-100 text-blue-800 border-blue-400" id="client-comp">
@@ -90,39 +158,6 @@
                     Origin Server - Location: **Singapore** (Backend Database)
                 </div>
 
-                <div class="mt-8 flex space-x-4">
-                    <button onclick="simulateRequest('hit')" class="py-2 px-4 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition duration-200 shadow-md">
-                        Simulate **CACHE HIT** (FAST)
-                    </button>
-                    <button onclick="simulateRequest('miss')" class="py-2 px-4 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition duration-200 shadow-md">
-                        Simulate **CACHE MISS** (SLOW)
-                    </button>
-                </div>
-                
-                <div class="instruction w-full mt-6 p-3 bg-yellow-100 border-l-4 border-yellow-500 rounded text-gray-700">
-                    <span class="font-bold">Result:</span> <span id="result-message">Click a button to start the flow.</span>
-                </div>
-            </div>
-        </div>
-        
-        <div class="theory-section w-full mt-8 p-6 bg-gray-50 rounded-lg border border-gray-200 text-left">
-            <h2 class="text-2xl font-bold text-indigo-600 mb-4">📘 Core Concept: Caching (CDN)</h2>
-            <p class="mb-4 text-gray-700">
-                A **Content Delivery Network (CDN)** places copies of your static files (images, CSS, JavaScript) on **Edge Nodes**—servers distributed globally. When a user requests a file, the CDN directs them to the nearest Edge Node.
-            </p>
-            <ul class="list-disc list-inside space-y-2 text-gray-700">
-                <li>**Cache Hit (Fast):** The Edge Node has the file. Latency is low (e.g., 50ms) because the file travels a short distance.</li>
-                <li>**Cache Miss (Slow):** The Edge Node does *not* have the file. It must travel all the way to the distant **Origin Server** (your main server) to fetch it, resulting in high latency (e.g., 500ms).</li>
-            </ul>
-
-            <h3 class="text-xl font-bold text-indigo-600 mt-6 mb-3">🎯 Learning Objectives (rseedh mode)</h3>
-            <div class="grid sm:grid-cols-2 gap-3 text-sm">
-                <p class="text-gray-700"><span class="font-bold text-green-700">R</span>ecognize the latency problem caused by geographic distance (speed of light).</p>
-                <p class="text-gray-700"><span class="font-bold text-green-700">S</span>pecify the function of a **CDN Edge Node** (caching point).</p>
-                <p class="text-gray-700"><span class="font-bold text-green-700">E</span>xplain the difference between a cache **HIT** and a cache **MISS**.</p>
-                <p class="text-gray-700"><span class="font-bold text-green-700">E</span>xamine how caching improves both **latency** and **origin server load**.</p>
-                <p class="text-gray-700"><span class="font-bold text-green-700">D</span>emonstrate the flow of a request through the CDN to the Origin.</p>
-                <p class="text-gray-700"><span class="font-bold text-green-700">H</span>ow to choose assets for caching (static vs. dynamic content).</p>
             </div>
         </div>
     </div>
@@ -132,7 +167,6 @@
         const cdnComp = document.getElementById('cdn-comp');
         const originComp = document.getElementById('origin-comp');
         const resultMessage = document.getElementById('result-message');
-        const animationArea = document.getElementById('animation-area');
         const requestPacket = document.getElementById('request-packet');
         const missPacket = document.getElementById('miss-packet');
         const cacheStatus = document.getElementById('cache-status');
@@ -149,6 +183,7 @@
             missPacket.style.opacity = 0;
             requestPacket.style.animation = 'none';
             missPacket.style.animation = 'none';
+            // Reset position explicitly
             requestPacket.style.top = `${cdnY - 100}px`; 
             missPacket.style.top = `${cdnY - 100}px`;
             cacheStatus.textContent = 'Status: Waiting';
